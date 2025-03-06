@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using task_management.Caches;
 using task_management.Dtos;
 using task_management.Models;
@@ -8,6 +9,7 @@ namespace task_management.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class UsuarioController : ControllerBase
     {
         private readonly IUsuarioRepository _usuarioRepository;
@@ -29,6 +31,7 @@ namespace task_management.Controllers
 
 
         [HttpPost]
+        [Authorize(Roles = "Admin")] // Esta anotação exige autenticação e role específica
         public async Task<ActionResult<UsuarioDto>> CriarUsuario([FromBody] Usuario usuario)
         {
             if (!ModelState.IsValid)

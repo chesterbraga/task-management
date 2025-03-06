@@ -1,13 +1,14 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using task_management.Caches;
 using task_management.Contexts;
+using task_management.Models;
 using task_management.Repositories;
-using Microsoft.Extensions.Caching.StackExchangeRedis;
-
+using task_management.Services;
 
 namespace task_management
 {
@@ -39,6 +40,32 @@ namespace task_management
                     Title = "Task Management API",
                     Version = "v1"
                 });
+
+                // Configuração do Swagger para JWT
+                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Description = "JWT Authorization header usando Bearer scheme. Exemplo: \"Authorization: Bearer {token}\"",
+                    Name = "Authorization",
+                    In = ParameterLocation.Header,
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT"
+                });
+
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        new string[] {}
+                    }
+                });
             });
 
             // Configurações do Controllers e JSON
@@ -49,8 +76,12 @@ namespace task_management
                         System.Text.Json.Serialization.ReferenceHandler.Preserve;
                 });
 
-            // Autenticação JWT (Básico)
-            var key = Encoding.ASCII.GetBytes("ChaveSecretaDeSegurancaMuitoLongaESecurity");
+            // Autenticação JWT
+            var jwtSettingsSection = Configuration.GetSection("JwtSettings");
+            services.Configure<JwtSettings>(jwtSettingsSection);
+
+            var jwtSettings = jwtSettingsSection.Get<JwtSettings>();
+            var key = Encoding.ASCII.GetBytes(jwtSettings.Secret);
 
             services.AddAuthentication(x =>
             {
@@ -65,8 +96,11 @@ namespace task_management
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidIssuer = jwtSettings.Issuer,
+                    ValidAudience = jwtSettings.Audience,
+                    ClockSkew = TimeSpan.Zero
                 };
             });
 
@@ -80,6 +114,8 @@ namespace task_management
             // Registrar serviços de cache
             services.AddScoped<IUsuarioCacheService, UsuarioCacheService>();
             services.AddScoped<ITarefaCacheService, TarefaCacheService>();
+
+            services.AddScoped<ITokenService, TokenService>();
         }
 
         public void Configure(IApplicationBuilder app)
